@@ -1,0 +1,4 @@
+pandas>=2.2
+plotly>=5.22
+streamlit>=1.38
+statsmodels>=0.14
