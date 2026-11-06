@@ -1,0 +1,11 @@
+start,damped,n_quarters,model_mae_pts,naive_mae_pts,beats_naive
+2017Q1,True,38,0.608,2.117,True
+2017Q1,False,38,0.458,2.117,True
+2019Q1,True,30,0.519,2.117,True
+2019Q1,False,30,0.487,2.117,True
+2021Q1,True,22,2.753,2.117,False
+2021Q1,False,22,4.68,2.117,False
+2022Q1,True,18,2.257,2.117,False
+2022Q1,False,18,3.875,2.117,False
+2023Q1,True,14,2.555,2.117,False
+2023Q1,False,14,2.509,2.117,False

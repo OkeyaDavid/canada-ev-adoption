@@ -1,60 +1,58 @@
-"""Step 3 - Clean the StatCan table and load it into SQLite.
+"""Clean StatCan table 20-10-0025-01 and load it into SQLite.
 
 Run:  python src/clean.py
 
-Input : data/raw/20100025-eng.zip  (or the unzipped 20100025.csv)
-Output: data/ev.db   - SQLite database with one tidy table: registrations
-        data/processed/registrations.csv - the same table as CSV
+In:  data/raw/20100025-eng.zip  (1.4 GB extracted, 8.1M rows, read in chunks)
+Out: data/ev.db                 (one tidy table + the `quarterly` view)
+     data/processed/registrations.csv
 
-What it does:
-  1. Keeps only Canada + the provinces/territories (drops cities, which make the file huge)
-  2. Keeps only "all vehicle types" (the total), so fuel types add up correctly
-  3. Renames fuel types to short codes: bev, phev, hybrid, gasoline, diesel, other, total
-     (plus zev_reported = StatCan's own ZEV subtotal, used only to double-check bev + phev)
-  4. Turns "2026-04" into a proper quarter: 2026Q2
-  5. Checks the national numbers against StatCan's published figures
+Steps
+  1. Keep Canada and the provinces/territories; drop the ~5,100 city rows
+  2. Keep "Total, vehicle type" so fuel types are not double counted
+  3. Map StatCan's fuel labels to short codes; keep its own ZEV subtotal separately
+  4. Turn REF_DATE (2026-04) into a quarter label (2026Q2)
+  5. Verify national totals against StatCan's published Daily release
+
+Footnote 2 of the table: Newfoundland and Labrador and Alberta are not published because of
+data-sharing agreements. They are inside the Canada total but cannot be shown separately.
 """
+from __future__ import annotations
+
 import sqlite3
-import sys
+import zipfile
 from pathlib import Path
 
 import pandas as pd
 
-sys.path.insert(0, str(Path(__file__).parent))
-from explore import open_raw_csv  # noqa: E402
-
-DB_PATH = Path("data/ev.db")
-CSV_OUT = Path("data/processed/registrations.csv")
+ROOT = Path(__file__).resolve().parent.parent
+RAW_ZIP = ROOT / "data" / "raw" / "20100025-eng.zip"
+DB = ROOT / "data" / "ev.db"
+OUT_CSV = ROOT / "data" / "processed" / "registrations.csv"
+CHUNK = 500_000
 
 PROVINCES = {
-    "Canada": "CA",
-    "Newfoundland and Labrador": "NL",
-    "Prince Edward Island": "PE",
-    "Nova Scotia": "NS",
-    "New Brunswick": "NB",
-    "Quebec": "QC",
-    "Ontario": "ON",
-    "Manitoba": "MB",
-    "Saskatchewan": "SK",
-    "Alberta": "AB",
-    "British Columbia": "BC",
-    "Yukon": "YT",
-    "Northwest Territories": "NT",
-    "Nunavut": "NU",
-    "Territories": "TR",
+    "Canada": "CA", "Newfoundland and Labrador": "NL", "Prince Edward Island": "PE",
+    "Nova Scotia": "NS", "New Brunswick": "NB", "Quebec": "QC", "Ontario": "ON",
+    "Manitoba": "MB", "Saskatchewan": "SK", "Alberta": "AB", "British Columbia": "BC",
+    "Yukon": "YT", "Northwest Territories": "NT", "Nunavut": "NU", "Territories": "TR",
 }
+
+# StatCan's published figures, used as a correctness check (The Daily, 2026-06-11 for Q1 2026;
+# Q2 2026 from the table itself as reported in industry coverage).
+EXPECTED = {("2026Q2", "total"): 547_673, ("2026Q2", "zev"): 58_811,
+            ("2026Q1", "total"): 397_601, ("2026Q1", "zev"): 43_113}
 
 
 def fuel_code(label: str) -> str:
-    """Map StatCan's fuel-type wording to a short code. Order matters: subtotals first, and 'plug-in' before 'hybrid'."""
-    s = label.lower()
-    if "all fuel" in s or s.startswith("total"):
+    """Short code per fuel label. Order matters: subtotals first, plug-in before hybrid."""
+    s = str(label).lower()
+    if "all fuel" in s:
         return "total"
     if "zero-emission" in s:
-        return "zev_reported"   # StatCan's own BEV + PHEV subtotal - kept only as a cross-check
+        return "zev_reported"      # StatCan's own BEV+PHEV subtotal: kept, never re-added
     if "battery" in s:
         return "bev"
-    if "plug-in" in s or "plug in" in s:
+    if "plug-in" in s:
         return "phev"
     if "hybrid" in s:
         return "hybrid"
@@ -65,42 +63,26 @@ def fuel_code(label: str) -> str:
     return "other"
 
 
-def find_col(columns, word):
-    """Find the column whose name contains `word` (e.g. 'fuel' -> 'Fuel type')."""
-    matches = [c for c in columns if word in c.lower()]
-    if not matches:
-        raise KeyError(f"No column containing '{word}'. Columns are: {list(columns)}")
-    return matches[0]
+def open_csv():
+    return zipfile.ZipFile(RAW_ZIP).open("20100025.csv")
 
 
-def load_raw() -> pd.DataFrame:
-    """Read the big CSV in chunks, keeping only provincial/national rows."""
-    header = pd.read_csv(open_raw_csv(), nrows=0, encoding="utf-8-sig").columns
-    fuel_col = find_col(header, "fuel")
-    veh_col = find_col(header, "vehicle type")
-    stat_cols = [c for c in header if c.lower() in ("statistics", "statistic")]
-    usecols = ["REF_DATE", "GEO", fuel_col, veh_col, "VALUE"] + stat_cols
-
-    parts = []
-    for chunk in pd.read_csv(open_raw_csv(), usecols=usecols, chunksize=500_000,
-                             low_memory=False, encoding="utf-8-sig"):
-        parts.append(chunk[chunk["GEO"].isin(PROVINCES)])
+def load() -> pd.DataFrame:
+    if not RAW_ZIP.exists():
+        raise SystemExit(f"Missing {RAW_ZIP}. Download it from "
+                         "https://www150.statcan.gc.ca/n1/tbl/csv/20100025-eng.zip")
+    cols = ["REF_DATE", "GEO", "Fuel type", "Vehicle type", "Statistics", "VALUE"]
+    parts, rows = [], 0
+    for chunk in pd.read_csv(open_csv(), usecols=cols, chunksize=CHUNK,
+                             encoding="utf-8-sig", low_memory=False):
+        rows += len(chunk)
+        keep = chunk[(chunk["GEO"].isin(PROVINCES))
+                     & (chunk["Vehicle type"] == "Total, vehicle type")
+                     & (chunk["Statistics"] == "Number of vehicles")]
+        parts.append(keep)
     df = pd.concat(parts, ignore_index=True)
-
-    # Keep the "total of all vehicle types" rows only
-    veh_values = df[veh_col].dropna().unique()
-    total_veh = [v for v in veh_values if "total" in v.lower() or "all" in v.lower()]
-    if len(total_veh) != 1:
-        raise ValueError(f"Can't tell which vehicle type is the total: {list(veh_values)}")
-    df = df[df[veh_col] == total_veh[0]]
-
-    # If there's a Statistics column, keep the vehicle counts (not dollars or percentages)
-    for c in stat_cols:
-        counts = [v for v in df[c].unique() if "number" in str(v).lower()]
-        if counts:
-            df = df[df[c] == counts[0]]
-
-    return df.rename(columns={fuel_col: "fuel_label"})[["REF_DATE", "GEO", "fuel_label", "VALUE"]]
+    print(f"Read {rows:,} rows; kept {len(df):,} national/provincial totals")
+    return df
 
 
 def tidy(df: pd.DataFrame) -> pd.DataFrame:
@@ -108,48 +90,45 @@ def tidy(df: pd.DataFrame) -> pd.DataFrame:
         "quarter": pd.PeriodIndex(pd.to_datetime(df["REF_DATE"]), freq="Q").astype(str),
         "province": df["GEO"].values,
         "prov_code": df["GEO"].map(PROVINCES).values,
-        "fuel_type": df["fuel_label"].map(fuel_code).values,
+        "fuel_type": df["Fuel type"].map(fuel_code).values,
         "vehicles": pd.to_numeric(df["VALUE"], errors="coerce").values,
     })
     out["year"] = out["quarter"].str[:4].astype(int)
     out["q"] = out["quarter"].str[-1].astype(int)
-    # Some fuel labels can map to the same code (e.g. several 'other' types) -> add them up
     out = (out.groupby(["quarter", "year", "q", "province", "prov_code", "fuel_type"],
                        as_index=False)["vehicles"].sum(min_count=1))
     return out.sort_values(["province", "quarter", "fuel_type"]).reset_index(drop=True)
 
 
-def check(out: pd.DataFrame) -> None:
-    """Compare with numbers StatCan published. Big differences = a filtering mistake."""
-    expected = {("2026Q2", "total"): 547_673, ("2026Q2", "zev"): 58_811,
-                ("2026Q1", "total"): 397_601, ("2026Q1", "zev"): 43_113}
-    ca = out[out["prov_code"] == "CA"].pivot_table(index="quarter", columns="fuel_type",
-                                                   values="vehicles", aggfunc="sum")
-    ca["zev"] = ca.get("bev", 0) + ca.get("phev", 0)
+def verify(out: pd.DataFrame) -> bool:
+    ca = (out[out["prov_code"] == "CA"]
+          .pivot_table(index="quarter", columns="fuel_type", values="vehicles", aggfunc="sum"))
+    ca["zev"] = ca["zev_reported"]
+    ok = True
     print("\nCheck against StatCan's published figures:")
-    for (qtr, col), exp in expected.items():
-        if qtr in ca.index:
-            got = ca.loc[qtr, col]
-            flag = "OK " if abs(got - exp) / exp < 0.01 else "CHECK"
-            print(f"  [{flag}] {qtr} {col:5}: got {got:>9,.0f}  expected {exp:>9,}")
-        else:
-            print(f"  [skip] {qtr} not in data")
+    for (qtr, col), exp in EXPECTED.items():
+        got = ca.loc[qtr, col] if qtr in ca.index else float("nan")
+        good = abs(got - exp) / exp < 0.005
+        ok &= bool(good)
+        print(f"  [{'OK ' if good else 'FAIL'}] {qtr} {col:5}: got {got:>9,.0f}  expected {exp:>9,}")
+    # internal consistency: BEV + PHEV must equal StatCan's own ZEV subtotal
+    mismatch = ca[(ca[["bev", "phev"]].sum(axis=1) - ca["zev_reported"]).abs() > 0.5]
+    print(f"  [{'OK ' if mismatch.empty else 'FAIL'}] BEV + PHEV equals the published ZEV "
+          f"subtotal in every quarter ({len(mismatch)} mismatches)")
+    return ok and mismatch.empty
 
 
 if __name__ == "__main__":
-    raw = load_raw()
-    print(f"Kept {len(raw):,} provincial/national rows")
-    print("Fuel types found:", sorted(raw["fuel_label"].unique()))
-
-    out = tidy(raw)
+    out = tidy(load())
     print(f"Tidy table: {len(out):,} rows, {out['quarter'].min()} to {out['quarter'].max()}, "
           f"{out['province'].nunique()} places")
 
-    CSV_OUT.parent.mkdir(parents=True, exist_ok=True)
-    out.to_csv(CSV_OUT, index=False)
-    with sqlite3.connect(DB_PATH) as con:
+    OUT_CSV.parent.mkdir(parents=True, exist_ok=True)
+    out.to_csv(OUT_CSV, index=False)
+    with sqlite3.connect(DB) as con:
         out.to_sql("registrations", con, if_exists="replace", index=False)
-        con.executescript(Path("sql/01_views.sql").read_text())
-    print(f"Saved {DB_PATH} and {CSV_OUT}")
+        con.executescript((ROOT / "sql" / "01_views.sql").read_text())
+    print(f"Saved {DB} and {OUT_CSV}")
 
-    check(out)
+    if not verify(out):
+        raise SystemExit("Verification failed: the cleaned data does not match StatCan.")

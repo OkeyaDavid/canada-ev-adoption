@@ -1,0 +1,9 @@
+start,damped,folds,model_mae,naive_mae,beats_naive
+2017Q1,True,5,5.49,4.431,False
+2017Q1,False,5,5.498,4.431,False
+2019Q1,True,5,5.282,4.431,False
+2019Q1,False,5,5.23,4.431,False
+2021Q1,True,5,5.556,4.431,False
+2021Q1,False,5,6.063,4.431,False
+2022Q1,True,5,5.703,4.431,False
+2022Q1,False,5,5.963,4.431,False

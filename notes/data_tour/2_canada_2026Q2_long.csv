@@ -1,0 +1,41 @@
+REF_DATE,GEO,Fuel type,Vehicle type,VALUE
+2026-04,Canada,All fuel types,"Total, vehicle type",547673.0
+2026-04,Canada,All fuel types,Passenger cars,76325.0
+2026-04,Canada,All fuel types,Pickup trucks,104973.0
+2026-04,Canada,All fuel types,Multi-purpose vehicles,340166.0
+2026-04,Canada,All fuel types,Vans,26209.0
+2026-04,Canada,Gasoline,"Total, vehicle type",375814.0
+2026-04,Canada,Gasoline,Passenger cars,48826.0
+2026-04,Canada,Gasoline,Pickup trucks,73972.0
+2026-04,Canada,Gasoline,Multi-purpose vehicles,235114.0
+2026-04,Canada,Gasoline,Vans,17902.0
+2026-04,Canada,Diesel,"Total, vehicle type",21180.0
+2026-04,Canada,Diesel,Passenger cars,0.0
+2026-04,Canada,Diesel,Pickup trucks,19302.0
+2026-04,Canada,Diesel,Multi-purpose vehicles,779.0
+2026-04,Canada,Diesel,Vans,1099.0
+2026-04,Canada,All zero-emission vehicles,"Total, vehicle type",58811.0
+2026-04,Canada,All zero-emission vehicles,Passenger cars,13262.0
+2026-04,Canada,All zero-emission vehicles,Pickup trucks,1243.0
+2026-04,Canada,All zero-emission vehicles,Multi-purpose vehicles,43470.0
+2026-04,Canada,All zero-emission vehicles,Vans,836.0
+2026-04,Canada,Battery electric,"Total, vehicle type",40585.0
+2026-04,Canada,Battery electric,Passenger cars,9335.0
+2026-04,Canada,Battery electric,Pickup trucks,1243.0
+2026-04,Canada,Battery electric,Multi-purpose vehicles,29192.0
+2026-04,Canada,Battery electric,Vans,815.0
+2026-04,Canada,Plug-in hybrid electric,"Total, vehicle type",18226.0
+2026-04,Canada,Plug-in hybrid electric,Passenger cars,3927.0
+2026-04,Canada,Plug-in hybrid electric,Pickup trucks,0.0
+2026-04,Canada,Plug-in hybrid electric,Multi-purpose vehicles,14278.0
+2026-04,Canada,Plug-in hybrid electric,Vans,21.0
+2026-04,Canada,Hybrid electric,"Total, vehicle type",91868.0
+2026-04,Canada,Hybrid electric,Passenger cars,14237.0
+2026-04,Canada,Hybrid electric,Pickup trucks,10456.0
+2026-04,Canada,Hybrid electric,Multi-purpose vehicles,60803.0
+2026-04,Canada,Hybrid electric,Vans,6372.0
+2026-04,Canada,Other fuel types,"Total, vehicle type",0.0
+2026-04,Canada,Other fuel types,Passenger cars,0.0
+2026-04,Canada,Other fuel types,Pickup trucks,0.0
+2026-04,Canada,Other fuel types,Multi-purpose vehicles,0.0
+2026-04,Canada,Other fuel types,Vans,0.0

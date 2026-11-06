@@ -1,0 +1,11 @@
+REF_DATE,GEO,DGUID,Fuel type,Vehicle type,Statistics,UOM,UOM_ID,SCALAR_FACTOR,SCALAR_ID,VECTOR,COORDINATE,VALUE,STATUS,SYMBOL,TERMINATED,DECIMALS
+2017-01,Canada,2021A000011124,All fuel types,"Total, vehicle type",Number of vehicles,Units,300,units,0,v1671330686,1.4.1.1,425031,,,,0
+2017-01,Canada,2021A000011124,All fuel types,Passenger cars,Number of vehicles,Units,300,units,0,v1671330687,1.4.2.1,130740,,,,0
+2017-01,Canada,2021A000011124,All fuel types,Pickup trucks,Number of vehicles,Units,300,units,0,v1671330688,1.4.3.1,89794,,,,0
+2017-01,Canada,2021A000011124,All fuel types,Multi-purpose vehicles,Number of vehicles,Units,300,units,0,v1671330689,1.4.4.1,176932,,,,0
+2017-01,Canada,2021A000011124,All fuel types,Vans,Number of vehicles,Units,300,units,0,v1671330690,1.4.5.1,27565,,,,0
+2017-01,Canada,2021A000011124,Gasoline,"Total, vehicle type",Number of vehicles,Units,300,units,0,v1671330691,1.5.1.1,403232,,,,0
+2017-01,Canada,2021A000011124,Gasoline,Passenger cars,Number of vehicles,Units,300,units,0,v1671330692,1.5.2.1,125701,,,,0
+2017-01,Canada,2021A000011124,Gasoline,Pickup trucks,Number of vehicles,Units,300,units,0,v1671330693,1.5.3.1,78413,,,,0
+2017-01,Canada,2021A000011124,Gasoline,Multi-purpose vehicles,Number of vehicles,Units,300,units,0,v1671330694,1.5.4.1,173238,,,,0
+2017-01,Canada,2021A000011124,Gasoline,Vans,Number of vehicles,Units,300,units,0,v1671330695,1.5.5.1,25880,,,,0

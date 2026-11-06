@@ -1,14 +1,11 @@
-# Python
 .venv/
 __pycache__/
 *.pyc
-.ipynb_checkpoints/
-
-# Raw StatCan download is large - don't commit it. The small cleaned database IS committed.
-data/raw/
-
-# Mac
 .DS_Store
 
-# Transfer package from Claude (safe to delete)
-_archive/
+# 1.4 GB raw StatCan extract - rebuildable from the download link in the README
+data/raw/
+
+# transfer archives from Claude (safe to delete)
+_build.tar.gz
+_code.tar.gz

@@ -1,0 +1,8 @@
+{
+  "window_start": "2021Q1",
+  "folds": 5,
+  "model_mae_pts": 5.56,
+  "naive_mae_pts": 4.43,
+  "beats_naive": false,
+  "note": "Rolling-origin back-test, 4-quarter horizon, origins straddling the Jan 2025 rebate cuts."
+}

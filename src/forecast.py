@@ -1,72 +1,106 @@
-"""Step 6 - Forecast ZEV share for the next 4 quarters.
+"""Forecast ZEV share for the next four quarters, with an uncertainty band.
 
-Run:  python src/forecast.py              (Canada)
-      python src/forecast.py BC           (one province, by code)
+Run:  python src/forecast.py            # Canada
+      python src/forecast.py BC         # any province code
+      python src/forecast.py --bench    # compare models and training windows
 
-Model: exponential smoothing with a damped trend (statsmodels ETS).
-  - "Exponential smoothing" = recent quarters count more than old ones.
-  - "Damped trend" = the trend is assumed to flatten out rather than grow forever,
-    which is sensible for a market share that can't pass 100%.
-We also back-test: hide the last 4 real quarters, forecast them, and compare the error
-with a naive "next quarter = this quarter" guess. That's what you quote in interviews.
+Model: damped-trend exponential smoothing (statsmodels ETS). Recent quarters count for more
+than old ones, and the trend is assumed to flatten rather than run forever, which suits a
+market share bounded at 100%.
+
+Honesty note: the series contains a policy shock (federal and Quebec EV rebates were cut in
+January 2025, and ZEV share halved in one quarter). No univariate model can anticipate that
+kind of break, so the band, not the line, is the forecast. `--bench` reports how each option
+does against a naive "same as last quarter" baseline on the last four real quarters.
 """
+from __future__ import annotations
+
 import sqlite3
 import sys
 import warnings
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
 from statsmodels.tsa.exponential_smoothing.ets import ETSModel
 
-warnings.filterwarnings("ignore")  # statsmodels prints convergence chatter
+warnings.filterwarnings("ignore")
 
-DB_PATH = "data/ev.db"
-START = "2019Q1"   # earlier quarters have almost no EVs and add noise
+ROOT = Path(__file__).resolve().parent.parent
+DB = ROOT / "data" / "ev.db"
+DEFAULT_START = "2021Q1"   # see --bench; chosen on back-test evidence, not taste
+HORIZON = 4
+LEVEL = 0.80
 
 
-def load_share(prov_code="CA", db_path=DB_PATH) -> pd.Series:
-    with sqlite3.connect(db_path) as con:
+def load_share(prov_code: str = "CA", start: str = DEFAULT_START, db: Path = DB) -> pd.Series:
+    with sqlite3.connect(db) as con:
         df = pd.read_sql_query(
             "SELECT quarter, zev_share FROM quarterly WHERE prov_code = ? ORDER BY quarter",
             con, params=(prov_code,))
     s = pd.Series(df["zev_share"].values,
                   index=pd.PeriodIndex(df["quarter"], freq="Q"), name="zev_share").dropna()
-    return s[s.index >= pd.Period(START, freq="Q")]
+    return s[s.index >= pd.Period(start, freq="Q")].astype(float)
 
 
-def fit_forecast(series: pd.Series, horizon=4, level=0.80) -> pd.DataFrame:
-    """Return a table with the forecast and a low/high band (80% by default)."""
-    model = ETSModel(series.astype(float), error="add", trend="add", damped_trend=True)
-    fit = model.fit(disp=False)
-    pred = fit.get_prediction(start=len(series), end=len(series) + horizon - 1)
-    frame = pred.summary_frame(alpha=1 - level)
+def fit_forecast(series: pd.Series, horizon: int = HORIZON, level: float = LEVEL,
+                 damped: bool = True) -> pd.DataFrame:
+    fit = ETSModel(series, error="add", trend="add", damped_trend=damped).fit(disp=False)
+    frame = fit.get_prediction(start=len(series),
+                               end=len(series) + horizon - 1).summary_frame(alpha=1 - level)
     idx = pd.period_range(series.index[-1] + 1, periods=horizon, freq="Q")
     return pd.DataFrame({
         "quarter": idx.astype(str),
-        "forecast": frame["mean"].clip(lower=0).values,
-        "low": frame["pi_lower"].clip(lower=0).values,
-        "high": frame["pi_upper"].clip(upper=100).values,
+        "forecast": frame["mean"].clip(lower=0).to_numpy(),
+        "low": frame["pi_lower"].clip(lower=0).to_numpy(),
+        "high": frame["pi_upper"].clip(upper=100).to_numpy(),
     })
 
 
-def backtest(series: pd.Series, horizon=4) -> dict:
-    """Hide the last `horizon` quarters, forecast them, and measure the error."""
+def backtest(series: pd.Series, horizon: int = HORIZON, damped: bool = True) -> dict:
+    """Hide the last `horizon` quarters, forecast them, compare with a naive baseline."""
     train, test = series[:-horizon], series[-horizon:]
-    fc = fit_forecast(train, horizon)["forecast"].values
+    fc = fit_forecast(train, horizon, damped=damped)["forecast"].to_numpy()
     naive = np.repeat(train.iloc[-1], horizon)
-    return {
-        "model_mae": float(np.mean(np.abs(fc - test.values))),
-        "naive_mae": float(np.mean(np.abs(naive - test.values))),
-        "test_quarters": f"{test.index[0]}-{test.index[-1]}",
-    }
+    mae = float(np.mean(np.abs(fc - test.to_numpy())))
+    naive_mae = float(np.mean(np.abs(naive - test.to_numpy())))
+    return {"model_mae": round(mae, 3), "naive_mae": round(naive_mae, 3),
+            "beats_naive": mae < naive_mae,
+            "window": f"{series.index[0]}-{series.index[-1]}",
+            "tested_on": f"{test.index[0]}-{test.index[-1]}"}
+
+
+def bench() -> pd.DataFrame:
+    rows = []
+    for start in ["2017Q1", "2019Q1", "2021Q1", "2022Q1", "2023Q1"]:
+        for damped in (True, False):
+            s = load_share("CA", start)
+            if len(s) < 12:
+                continue
+            bt = backtest(s, damped=damped)
+            rows.append({"start": start, "damped": damped, "n_quarters": len(s),
+                         "model_mae_pts": bt["model_mae"], "naive_mae_pts": bt["naive_mae"],
+                         "beats_naive": bt["beats_naive"]})
+    return pd.DataFrame(rows)
 
 
 if __name__ == "__main__":
+    if "--bench" in sys.argv:
+        t = bench()
+        print("Back-test on the last 4 quarters (Canada), mean absolute error in "
+              "percentage points:\n")
+        print(t.to_string(index=False))
+        print("\nLower is better; the naive baseline repeats the last observed quarter.")
+        t.to_csv(ROOT / "docs" / "forecast_benchmark.csv", index=False)
+        raise SystemExit
+
     code = sys.argv[1] if len(sys.argv) > 1 else "CA"
     s = load_share(code)
-    print(f"{code}: {len(s)} quarters, latest {s.index[-1]} = {s.iloc[-1]:.1f}%")
-    print("\nForecast (80% range):")
-    print(fit_forecast(s).round(1).to_string(index=False))
+    print(f"{code}: {len(s)} quarters from {s.index[0]}, latest {s.index[-1]} = {s.iloc[-1]:.2f}%")
+    fc = fit_forecast(s)
+    print(f"\nForecast, {int(LEVEL*100)}% interval:")
+    print(fc.round(2).to_string(index=False))
     bt = backtest(s)
-    print(f"\nBack-test on {bt['test_quarters']}: model error {bt['model_mae']:.2f} pts, "
-          f"naive error {bt['naive_mae']:.2f} pts (lower is better)")
+    print(f"\nBack-test on {bt['tested_on']}: model {bt['model_mae']} pts vs naive "
+          f"{bt['naive_mae']} pts -> {'beats' if bt['beats_naive'] else 'does NOT beat'} "
+          "the naive baseline")
