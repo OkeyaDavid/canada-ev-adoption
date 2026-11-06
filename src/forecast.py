@@ -85,6 +85,41 @@ def bench() -> pd.DataFrame:
 
 
 if __name__ == "__main__":
+    if "--export" in sys.argv:
+        import sqlite3
+        con = sqlite3.connect(DB)
+        codes = [r[0] for r in con.execute("SELECT DISTINCT prov_code FROM quarterly")]
+        out, bts = [], []
+        for code in codes:
+            s = load_share(code)
+            if len(s) < 10 or s.isna().all():
+                continue
+            fc = fit_forecast(s); fc.insert(0, "prov_code", code); out.append(fc)
+            full = load_share(code, "2017Q1"); errs, nerrs = [], []
+            for origin in range(len(full) - 8, len(full) - 3):
+                hist = full.iloc[:origin]
+                hist = hist[hist.index >= pd.Period(DEFAULT_START, freq="Q")]
+                if len(hist) < 10:
+                    continue
+                h = min(HORIZON, len(full) - origin)
+                try:
+                    f_ = fit_forecast(hist, h)["forecast"].to_numpy()
+                except Exception:
+                    continue
+                act = full.iloc[origin:origin + h].to_numpy()
+                errs.append(np.mean(np.abs(f_ - act)))
+                nerrs.append(np.mean(np.abs(hist.iloc[-1] - act)))
+            if errs:
+                bts.append({"prov_code": code, "folds": len(errs),
+                            "model_mae_pts": round(float(np.mean(errs)), 2),
+                            "naive_mae_pts": round(float(np.mean(nerrs)), 2),
+                            "beats_naive": bool(np.mean(errs) < np.mean(nerrs))})
+        proc = ROOT / "data" / "processed"
+        pd.concat(out).round(3).to_csv(proc / "forecasts.csv", index=False)
+        pd.DataFrame(bts).to_csv(proc / "forecast_backtest.csv", index=False)
+        print(f"Exported forecasts for {len(out)} geographies to {proc}")
+        raise SystemExit
+
     if "--bench" in sys.argv:
         t = bench()
         print("Back-test on the last 4 quarters (Canada), mean absolute error in "

@@ -1,0 +1,13 @@
+prov_code,folds,model_mae_pts,naive_mae_pts,beats_naive
+BC,5,6.0,3.98,False
+CA,5,5.56,4.43,False
+MB,5,1.44,1.34,False
+NB,5,2.71,1.64,False
+NT,5,0.91,0.84,False
+NS,5,2.01,1.78,False
+NU,4,1.35,1.24,False
+ON,5,1.46,1.73,True
+PE,5,3.4,1.75,False
+QC,5,18.41,11.22,False
+SK,5,0.66,0.63,False
+YT,5,5.44,3.58,False

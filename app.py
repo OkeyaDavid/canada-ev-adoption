@@ -16,7 +16,10 @@ import streamlit as st
 
 ROOT = Path(__file__).parent
 sys.path.insert(0, str(ROOT / "src"))
-from forecast import DEFAULT_START, fit_forecast, load_share  # noqa: E402
+
+# The forecasts are precomputed into data/processed/ by `python src/forecast.py --export`,
+# so the deployed app needs neither statsmodels nor any model fitting at request time.
+DEFAULT_START = "2021Q1"
 
 DB = ROOT / "data" / "ev.db"
 INK, GREY = "#3d3c39", "#8a8984"
@@ -43,6 +46,13 @@ def load_honesty() -> dict:
     return json.loads((ROOT / "docs" / "forecast_honesty.json").read_text())
 
 
+@st.cache_data
+def load_forecasts() -> tuple[pd.DataFrame, pd.DataFrame]:
+    fc = pd.read_csv(ROOT / "data" / "processed" / "forecasts.csv")
+    bt = pd.read_csv(ROOT / "data" / "processed" / "forecast_backtest.csv").set_index("prov_code")
+    return fc, bt
+
+
 def style(fig, height=380, y_title=None, pct=True, policy=True):
     fig.update_layout(height=height, margin=dict(l=8, r=8, t=8, b=8), hovermode="x unified",
                       legend=dict(orientation="h", y=-0.18), yaxis_title=y_title,
@@ -60,6 +70,7 @@ def style(fig, height=380, y_title=None, pct=True, policy=True):
 
 q = load_quarterly()
 honesty = load_honesty()
+forecasts, backtests = load_forecasts()
 prov = q[(q["prov_code"] != "CA") & q["total"].notna()]
 ca = q[q["prov_code"] == "CA"].set_index("quarter")
 quarters = sorted(q["quarter"].unique())
@@ -172,9 +183,13 @@ with tab_prov:
 
 with tab_fc:
     st.subheader("Forecast: ZEV share, next four quarters")
-    geo = st.selectbox("Forecast for", ["CA"] + options, format_func=lambda c: names[c])
-    hist = load_share(geo, DEFAULT_START, DB)
-    fc = fit_forecast(hist)
+    have = [c for c in ["CA"] + options if c in set(forecasts["prov_code"])]
+    geo = st.selectbox("Forecast for", have, format_func=lambda c: names[c])
+    hist_df = q[(q["prov_code"] == geo) & q["zev_share"].notna()
+                & (q["quarter"] >= DEFAULT_START)].sort_values("quarter")
+    hist = pd.Series(hist_df["zev_share"].to_numpy(),
+                     index=pd.PeriodIndex(hist_df["quarter"], freq="Q"))
+    fc = forecasts[forecasts["prov_code"] == geo].drop(columns=["prov_code"])
     hx = hist.index.to_timestamp()
     fx = pd.PeriodIndex(fc["quarter"], freq="Q").to_timestamp()
 
@@ -191,12 +206,17 @@ with tab_fc:
                              marker=dict(size=8)))
     st.plotly_chart(style(fig, y_title="ZEV share", policy=False), use_container_width=True)
 
+    b = backtests.loc[geo] if geo in backtests.index else None
+    verdict = ("**this model does not beat the naive baseline.**" if b is None or not b["beats_naive"]
+               else "it edges out the naive baseline here, which it does not do nationally.")
     st.warning(
         f"**Read the band, not the line.** Damped-trend exponential smoothing fitted from "
-        f"{DEFAULT_START}. In a rolling back-test over {honesty['folds']} origins it was off "
-        f"by {honesty['model_mae_pts']} percentage points on average, against "
-        f"{honesty['naive_mae_pts']} points for a naive \"same as last quarter\" guess — so "
-        f"**this model does not beat the naive baseline.** The reason is visible in the "
+        f"{DEFAULT_START}. In a rolling back-test over "
+        f"{int(b['folds']) if b is not None else honesty['folds']} origins it was off by "
+        f"{b['model_mae_pts'] if b is not None else honesty['model_mae_pts']} percentage points "
+        f"on average, against "
+        f"{b['naive_mae_pts'] if b is not None else honesty['naive_mae_pts']} points for a naive "
+        f"\"same as last quarter\" guess — so {verdict} The reason is visible in the "
         f"history: ZEV share halved in one quarter when the federal and Quebec rebates were "
         f"cut in January 2025, and no model fitted on past share can anticipate a policy "
         f"decision. Treat the interval as a plausible range under unchanged policy.")

@@ -1,7 +1,7 @@
-# Floors, not pins: let the deploy environment resolve wheels for whatever Python it runs.
-# Exact pins forced a source build of statsmodels on Python 3.13 and stalled the first deploy.
+# Runtime dependencies for the deployed dashboard. statsmodels is deliberately absent:
+# forecasts are precomputed into data/processed/ by `python src/forecast.py --export`,
+# so the app does no model fitting and installs cleanly on any recent Python.
 pandas>=2.0
 numpy>=1.26
-statsmodels>=0.14
 streamlit>=1.33
 plotly>=5.18
