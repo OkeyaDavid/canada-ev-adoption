@@ -9,14 +9,14 @@ four-quarter forecast and what the pattern means for an automaker's dealer netwo
 
 ## The question
 
-Where, and how fast, is Canada actually switching to electric vehicles — and what should a
+Where, and how fast, is Canada actually switching to electric vehicles, and what should a
 carmaker do about it?
 
 ## Key findings
 
 1. **The market peaked and broke.** National ZEV share hit **18.3% in 2024Q4**, then
-   fell to **8.6% in 2025Q2** — a drop of
-   9.7 points in two quarters — when the federal iZEV
+   fell to **8.6% in 2025Q2**, a drop of
+   9.7 points in two quarters, when the federal iZEV
    programme paused and Quebec cut its rebate in January 2025. It has recovered only to
    **10.7% in 2026Q2**.
 2. **Quebec carried the fall.** Its annual ZEV share went from
@@ -28,7 +28,7 @@ carmaker do about it?
    took **95%** of all ZEVs registered in the last four quarters.
 4. **Buyers moved down the ladder, not out.** Non-plug-in hybrids rose from
    9.1% of new registrations in 2024 to
-   15.4% in 2026 — straight through the cuts.
+   15.4% in 2026, straight through the cuts.
 5. **The forecast does not beat a naive baseline, and the README says so.** See below.
 
 ## National picture
@@ -66,7 +66,7 @@ small enough that their rates swing on a handful of vehicles.
 Damped-trend exponential smoothing from 2021Q1, four quarters ahead, with
 an 80% interval. In a rolling back-test over 5 origins it missed by
 **5.56 percentage points** on average against
-**4.43 points** for a naive "same as last quarter" guess — so **it does
+**4.43 points** for a naive "same as last quarter" guess, so **it does
 not beat the baseline**, and the dashboard says so on the forecast tab.
 
 That is not a tuning failure. The series contains a policy break: no model fitted on past

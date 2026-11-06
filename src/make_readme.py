@@ -55,14 +55,14 @@ four-quarter forecast and what the pattern means for an automaker's dealer netwo
 
 ## The question
 
-Where, and how fast, is Canada actually switching to electric vehicles — and what should a
+Where, and how fast, is Canada actually switching to electric vehicles, and what should a
 carmaker do about it?
 
 ## Key findings
 
 1. **The market peaked and broke.** National ZEV share hit **{peak:.1f}% in {peak_q}**, then
-   fell to **{ca.loc[trough_q, 'zev_share']:.1f}% in {trough_q}** — a drop of
-   {peak - ca.loc[trough_q, 'zev_share']:.1f} points in two quarters — when the federal iZEV
+   fell to **{ca.loc[trough_q, 'zev_share']:.1f}% in {trough_q}**, a drop of
+   {peak - ca.loc[trough_q, 'zev_share']:.1f} points in two quarters, when the federal iZEV
    programme paused and Quebec cut its rebate in January 2025. It has recovered only to
    **{ca.loc[latest, 'zev_share']:.1f}% in {latest}**.
 2. **Quebec carried the fall.** Its annual ZEV share went from
@@ -74,7 +74,7 @@ carmaker do about it?
    took **{top3['pct_of_zevs'].sum():.0f}%** of all ZEVs registered in the last four quarters.
 4. **Buyers moved down the ladder, not out.** Non-plug-in hybrids rose from
    {yearly.loc[2024, 'hyb']:.1f}% of new registrations in 2024 to
-   {yearly.loc[2026, 'hyb']:.1f}% in 2026 — straight through the cuts.
+   {yearly.loc[2026, 'hyb']:.1f}% in 2026, straight through the cuts.
 5. **The forecast does not beat a naive baseline, and the README says so.** See below.
 
 ## National picture
@@ -98,7 +98,7 @@ small enough that their rates swing on a handful of vehicles.
 Damped-trend exponential smoothing from {honesty['window_start']}, four quarters ahead, with
 an 80% interval. In a rolling back-test over {honesty['folds']} origins it missed by
 **{honesty['model_mae_pts']} percentage points** on average against
-**{honesty['naive_mae_pts']} points** for a naive "same as last quarter" guess — so **it does
+**{honesty['naive_mae_pts']} points** for a naive "same as last quarter" guess, so **it does
 not beat the baseline**, and the dashboard says so on the forecast tab.
 
 That is not a tuning failure. The series contains a policy break: no model fitted on past
