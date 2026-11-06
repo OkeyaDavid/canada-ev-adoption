@@ -1,7 +1,7 @@
-# Runtime dependencies for the deployed dashboard. statsmodels is deliberately absent:
-# forecasts are precomputed into data/processed/ by `python src/forecast.py --export`,
-# so the app does no model fitting and installs cleanly on any recent Python.
-pandas>=2.0
+# Floors with an upper bound on pandas: the deploy environment resolves to the newest
+# release, and pandas 3 changes frequency aliases. statsmodels is deliberately absent —
+# forecasts are precomputed by `python src/forecast.py --export` and read as CSV.
+pandas>=2.0,<3
 numpy>=1.26
-streamlit>=1.33
+streamlit>=1.40
 plotly>=5.18

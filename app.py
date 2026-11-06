@@ -33,11 +33,20 @@ POLICY = [("2025-01-01", "Federal iZEV paused,<br>Quebec rebate cut")]
 st.set_page_config(page_title="Canadian EV Adoption", page_icon="🔌", layout="wide")
 
 
+def quarter_to_date(labels) -> pd.Series:
+    """'2026Q2' -> 2026-04-01. Done arithmetically rather than with pd.PeriodIndex,
+    whose frequency aliases have changed across pandas versions."""
+    lab = pd.Series(list(labels), dtype="string")
+    year = lab.str.slice(0, 4).astype(int)
+    qtr = lab.str.slice(-1).astype(int)
+    return pd.to_datetime(dict(year=year, month=(qtr - 1) * 3 + 1, day=1))
+
+
 @st.cache_data
 def load_quarterly() -> pd.DataFrame:
     with sqlite3.connect(DB) as con:
         df = pd.read_sql_query("SELECT * FROM quarterly ORDER BY quarter", con)
-    df["date"] = pd.PeriodIndex(df["quarter"], freq="Q").to_timestamp()
+    df["date"] = quarter_to_date(df["quarter"])
     return df
 
 
@@ -68,16 +77,26 @@ def style(fig, height=380, y_title=None, pct=True, policy=True):
     return fig
 
 
-q = load_quarterly()
-honesty = load_honesty()
-forecasts, backtests = load_forecasts()
+st.title("Where is Canada going electric?")
+
+try:
+    q = load_quarterly()
+    honesty = load_honesty()
+    forecasts, backtests = load_forecasts()
+except Exception as exc:                      # noqa: BLE001
+    st.error(
+        "The dashboard could not load its data files. This is a deployment problem, "
+        "not a data problem: every file it needs is committed to the repository.\n\n"
+        f"**{type(exc).__name__}:** {exc}")
+    st.caption(f"Working directory: `{Path.cwd()}` · app directory: `{ROOT}`")
+    st.stop()
+
 prov = q[(q["prov_code"] != "CA") & q["total"].notna()]
 ca = q[q["prov_code"] == "CA"].set_index("quarter")
 quarters = sorted(q["quarter"].unique())
 latest = quarters[-1]
 names = dict(zip(q["prov_code"], q["province"]))
 
-st.title("Where is Canada going electric?")
 st.caption(
     f"New motor vehicle registrations by province and fuel type, Q1 2017 to {latest}. "
     "ZEV = battery electric + plug-in hybrid, StatCan's own definition. "
@@ -123,7 +142,7 @@ with tab_trend:
         d = prov[prov["prov_code"] == code]
         fig.add_trace(go.Scatter(x=d["date"], y=d["zev_share"], name=names[code], mode="lines",
                                  line=dict(color=PROV_COLOURS.get(code, GREY), width=2)))
-    st.plotly_chart(style(fig, y_title="ZEV share"), use_container_width=True)
+    st.plotly_chart(style(fig, y_title="ZEV share"), width="stretch")
 
     st.subheader(f"Fuel mix, {names[mix_geo]}")
     m = q[(q["prov_code"] == mix_geo) & q["total"].notna()].copy()
@@ -140,7 +159,7 @@ with tab_trend:
                                  hovertemplate=label + ": %{y:.1f}%<extra></extra>"))
     fig = style(fig, height=360)
     fig.update_yaxes(range=[0, 100])
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width="stretch")
     st.caption("Plain hybrids kept growing straight through the 2025 rebate cuts, which is "
                "the clearest sign that buyers substituted rather than left the market.")
 
@@ -159,7 +178,7 @@ with tab_prov:
     fig.update_layout(hovermode="closest", bargap=0.35)
     fig.update_xaxes(ticksuffix="%", showgrid=True, gridcolor="rgba(128,128,128,0.15)")
     fig.update_yaxes(ticksuffix=None, showgrid=False)
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width="stretch")
 
     st.subheader("What the 2025 rebate cuts cost each province")
     shock = (q[q["year"].isin([2024, 2025]) & q["total"].notna()]
@@ -177,7 +196,7 @@ with tab_prov:
     fig.update_layout(hovermode="closest", bargap=0.35)
     fig.update_xaxes(ticksuffix=" pts", showgrid=True, gridcolor="rgba(128,128,128,0.15)")
     fig.update_yaxes(ticksuffix=None, showgrid=False)
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width="stretch")
     st.caption("Change in annual ZEV share, 2024 to 2025. The provinces that had subsidised "
                "most had the furthest to fall.")
 
@@ -187,24 +206,23 @@ with tab_fc:
     geo = st.selectbox("Forecast for", have, format_func=lambda c: names[c])
     hist_df = q[(q["prov_code"] == geo) & q["zev_share"].notna()
                 & (q["quarter"] >= DEFAULT_START)].sort_values("quarter")
-    hist = pd.Series(hist_df["zev_share"].to_numpy(),
-                     index=pd.PeriodIndex(hist_df["quarter"], freq="Q"))
+    hist = hist_df["zev_share"].to_numpy()
     fc = forecasts[forecasts["prov_code"] == geo].drop(columns=["prov_code"])
-    hx = hist.index.to_timestamp()
-    fx = pd.PeriodIndex(fc["quarter"], freq="Q").to_timestamp()
+    hx = quarter_to_date(hist_df["quarter"])
+    fx = quarter_to_date(fc["quarter"])
 
     fig = go.Figure()
-    fig.add_trace(go.Scatter(x=list(fx) + list(fx[::-1]),
+    fig.add_trace(go.Scatter(x=list(fx) + list(fx)[::-1],
                              y=list(fc["high"]) + list(fc["low"][::-1]),
                              fill="toself", mode="lines", fillcolor="rgba(42,120,214,0.15)",
                              line=dict(width=0), name="80% interval", hoverinfo="skip"))
-    fig.add_trace(go.Scatter(x=hx, y=hist.to_numpy(), name="Actual", mode="lines",
+    fig.add_trace(go.Scatter(x=hx, y=hist, name="Actual", mode="lines",
                              line=dict(color=INK, width=2)))
-    fig.add_trace(go.Scatter(x=[hx[-1]] + list(fx), y=[hist.iloc[-1]] + list(fc["forecast"]),
+    fig.add_trace(go.Scatter(x=[hx.iloc[-1]] + list(fx), y=[float(hist[-1])] + list(fc["forecast"]),
                              name="Forecast", mode="lines+markers",
                              line=dict(color="#2a78d6", width=2, dash="dash"),
                              marker=dict(size=8)))
-    st.plotly_chart(style(fig, y_title="ZEV share", policy=False), use_container_width=True)
+    st.plotly_chart(style(fig, y_title="ZEV share", policy=False), width="stretch")
 
     b = backtests.loc[geo] if geo in backtests.index else None
     verdict = ("**this model does not beat the naive baseline.**" if b is None or not b["beats_naive"]
@@ -220,7 +238,7 @@ with tab_fc:
         f"history: ZEV share halved in one quarter when the federal and Quebec rebates were "
         f"cut in January 2025, and no model fitted on past share can anticipate a policy "
         f"decision. Treat the interval as a plausible range under unchanged policy.")
-    st.dataframe(fc.round(2), use_container_width=True, hide_index=True)
+    st.dataframe(fc.round(2), width="stretch", hide_index=True)
 
 with tab_biz:
     st.subheader("What this means for an automaker's dealer network")
@@ -265,7 +283,7 @@ sized for the 2024 peak is oversized for today's market.
 """)
     with st.expander("See the data"):
         cols = ["quarter", "province", "total", "bev", "phev", "hybrid", "zev", "zev_share"]
-        st.dataframe(q[cols], use_container_width=True, hide_index=True)
+        st.dataframe(q[cols], width="stretch", hide_index=True)
         st.download_button("Download CSV", q[cols].to_csv(index=False),
                            "canada_zev_quarterly.csv")
 
