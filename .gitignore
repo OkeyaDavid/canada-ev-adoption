@@ -9,3 +9,4 @@ data/raw/
 # transfer archives from Claude (safe to delete)
 _build.tar.gz
 _code.tar.gz
+_archive/
